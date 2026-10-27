@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RCNN Family Comparator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+<div id="root"></div>
+
+<script type="text/babel">
+const API = window.RCNN_API || "https://rcnncomparator.vuprojects.com";
+const { useState, useRef, useEffect } = React;
+
+function App() {
+  const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState(null);
+  const [error, setError] = useState("");
+  const fileInput = useRef(null);
+
+  const onFile = (f) => {
+    setFile(f);
+    setResults(null);
+    setError("");
+    if (f) setPreviewUrl(URL.createObjectURL(f));
+  };
+
+  const upload = async () => {
+    if (!file) return;
+    setLoading(true); setError("");
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const r = await fetch(`${API}/api/upload`, { method: "POST", body: fd });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setResults(await r.json());
+    } catch (e) {
+      setError(e.message || "Upload failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto p-6">
+      <header className="mb-6">
+        <h1 className="text-3xl font-bold">RCNN Family Comparator</h1>
+        <p className="text-slate-600">R-CNN · Fast R-CNN · Faster R-CNN — side by side</p>
+      </header>
+
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <input
+          ref={fileInput} type="file" accept="image/*"
+          onChange={(e) => onFile(e.target.files?.[0])}
+          className="block w-full text-sm" />
+        
+        <button
+          onClick={upload} disabled={!file || loading}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded disabled:bg-slate-400 flex items-center justify-center">
+          {loading && (
+            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          )}
+          {loading ? "Running all three models…" : "Compare"}
+        </button>
+        
+        {loading && (
+          <p className="mt-3 text-blue-600 text-sm animate-pulse font-semibold">
+            R-CNN is processing 2,000 proposals on CPU. This takes 30-60 seconds. Please do not refresh.
+          </p>
+        )}
+        {error && <p className="mt-3 text-red-600 text-sm">{error}</p>}
+      </div>
+
+      {results && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {results.results.map((r) => (
+              <Panel key={r.model_name} result={r} previewUrl={previewUrl} />
+            ))}
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6 mt-6">
+            <h2 className="text-xl font-semibold mb-4">Metrics</h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Model</th>
+                  <th className="text-right">Inference (ms)</th>
+                  <th className="text-right">Proposals</th>
+                  <th className="text-right">Detections</th>
+                  <th className="text-right">mAP@0.5</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.results.map((r) => (
+                  <tr key={r.model_name} className="border-b">
+                    <td className="py-2">{r.model_name}</td>
+                    <td className="text-right">{r.inference_ms}</td>
+                    <td className="text-right">{r.proposal_count}</td>
+                    <td className="text-right">{r.detection_count}</td>
+                    <td className="text-right text-slate-400">n/a</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-xs text-slate-500 mt-3">
+              mAP shown only when a PASCAL VOC test image is uploaded with ground truth.
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Panel({ result, previewUrl }) {
+  const imgRef = useRef(null);
+  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+
+  const updateSize = () => {
+    if (imgRef.current && imgRef.current.complete) {
+      setImgSize({ w: imgRef.current.naturalWidth, h: imgRef.current.naturalHeight });
+    }
+  };
+
+  useEffect(() => {
+    updateSize(); // Check if already cached
+  }, [previewUrl]);
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="font-semibold">{result.model_name}</h3>
+        <span className="text-xs px-2 py-1 bg-slate-100 rounded">
+          {result.inference_ms} ms
+        </span>
+      </div>
+      
+      <div className="relative overflow-hidden rounded border border-slate-200 bg-slate-50">
+        {previewUrl && (
+          <img 
+            ref={imgRef}
+            src={previewUrl} 
+            alt="" 
+            onLoad={updateSize} 
+            className="w-full rounded block" 
+          />
+        )}
+        
+        {imgSize.w > 0 && result.detections.map((d, i) => {
+          const left = Math.max(0, Math.min(100, (d.box[0] / imgSize.w) * 100));
+          const top = Math.max(0, Math.min(100, (d.box[1] / imgSize.h) * 100));
+          const width = Math.max(0, Math.min(100 - left, ((d.box[2] - d.box[0]) / imgSize.w) * 100));
+          const height = Math.max(0, Math.min(100 - top, ((d.box[3] - d.box[1]) / imgSize.h) * 100));
+          return (
+            <div
+              key={i}
+              className="absolute border-2 border-emerald-500 bg-emerald-500/15 pointer-events-none rounded-[2px]"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${width}%`,
+                height: `${height}%`,
+              }}
+            >
+              <span className="absolute -top-[18px] left-0 bg-emerald-600 text-white text-[9px] font-semibold px-1 py-[1px] rounded-t-[2px] whitespace-nowrap shadow-sm">
+                {d.class_name} {d.confidence ? `${Math.round(d.confidence * 100)}%` : ''}
+              </span>
+            </div>
+          );
+        })}
+        
+        {result.error && (
+          <p className="text-xs text-red-600 mt-2">{result.error}</p>
+        )}
+      </div>
+      
+      <p className="text-xs text-slate-500 mt-2">
+        {result.detection_count} detections · {result.proposal_count} proposals
+      </p>
+      <ul className="mt-2 text-xs max-h-40 overflow-auto">
+        {result.detections.slice(0, 20).map((d, i) => (
+          <li key={i} className="flex justify-between border-b py-1">
+            <span>{d.class_name}</span>
+            <span className="text-slate-500">{d.confidence.toFixed(2)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

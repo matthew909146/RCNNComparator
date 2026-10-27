@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.pt
+*.pth
+*.bin
+*.tar.gz
+*.db
+*.sqlite3
+.env
+venv/
+.venv/
+.DS_Store
+*.bak
+uploads/
+tmp/
+logs/

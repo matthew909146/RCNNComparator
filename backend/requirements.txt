@@ -1,0 +1,11 @@
+flask==3.0.3
+flask-cors==4.0.1
+torch==2.5.1
+torchvision==0.20.1
+Pillow==10.4.0
+numpy==1.26.4
+opencv-contrib-python-headless==4.10.0.84
+sqlalchemy==2.0.36
+python-dotenv==1.0.1
+gunicorn==22.0.0
+selectivesearch==0.4
